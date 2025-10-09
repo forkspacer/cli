@@ -1,0 +1,115 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below with as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: The CLI crashes when running 'forkspacer workspace create'...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Exact command and steps to reproduce the behavior
+      placeholder: |
+        1. Run `forkspacer workspace create dev-env`
+        2. See error...
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The workspace should be created successfully...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include full error message.
+      placeholder: |
+        Error: failed to create workspace
+        ...
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: CLI Version
+      description: Output of `forkspacer version`
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: operator-version
+    attributes:
+      label: Forkspacer Operator Version
+      description: What version of the Forkspacer operator is running?
+      placeholder: "v0.1.5"
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: Which OS are you using?
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (amd64)
+        - Linux (arm64)
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: k8s-version
+    attributes:
+      label: Kubernetes Version
+      description: Output of `kubectl version --short`
+      placeholder: "v1.28.0"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Any other relevant environment information
+      placeholder: |
+        - Shell: zsh 5.9
+        - Terminal: iTerm2
+        - Cluster: kind/minikube/GKE/EKS
+      render: yaml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Output
+      description: Full command output with --verbose flag if applicable
+      placeholder: |
+        $ forkspacer workspace create dev-env --verbose
+        ...
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here

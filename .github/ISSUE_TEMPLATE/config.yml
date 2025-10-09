@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/forkspacer/cli#documentation
+    about: Check the documentation first
+  - name: Forkspacer Community
+    url: https://github.com/forkspacer
+    about: Visit the main Forkspacer organization

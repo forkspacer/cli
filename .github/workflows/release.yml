@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Extract release tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Get commit info
+        run: |
+          echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_ENV
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+
+          # Build for each platform
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+
+          for platform in "${platforms[@]}"; do
+            GOOS=${platform%/*}
+            GOARCH=${platform#*/}
+
+            output_name="forkspacer-${GOOS}-${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then
+              output_name+=".exe"
+            fi
+
+            echo "Building $output_name..."
+            GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags="-X 'github.com/forkspacer/cli/cmd.version=${{ env.VERSION }}' \
+                        -X 'github.com/forkspacer/cli/cmd.gitCommit=${{ env.GIT_COMMIT }}' \
+                        -X 'github.com/forkspacer/cli/cmd.buildDate=${{ env.BUILD_DATE }}'" \
+              -o "dist/$output_name" \
+              .
+
+            # Create tar.gz for unix, zip for windows
+            cd dist
+            if [ "$GOOS" = "windows" ]; then
+              zip "${output_name%.exe}.zip" "$output_name"
+              rm "$output_name"
+            else
+              tar czf "${output_name}.tar.gz" "$output_name"
+              rm "$output_name"
+            fi
+            cd ..
+          done
+
+          ls -lh dist/
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 * > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release Notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## Installation
+
+          ### macOS (Apple Silicon)
+          ```bash
+          curl -sSL https://github.com/forkspacer/cli/releases/download/${{ env.VERSION }}/forkspacer-darwin-arm64.tar.gz | tar xz
+          sudo mv forkspacer /usr/local/bin/
+          forkspacer version
+          ```
+
+          ### macOS (Intel)
+          ```bash
+          curl -sSL https://github.com/forkspacer/cli/releases/download/${{ env.VERSION }}/forkspacer-darwin-amd64.tar.gz | tar xz
+          sudo mv forkspacer /usr/local/bin/
+          forkspacer version
+          ```
+
+          ### Linux (amd64)
+          ```bash
+          curl -sSL https://github.com/forkspacer/cli/releases/download/${{ env.VERSION }}/forkspacer-linux-amd64.tar.gz | tar xz
+          sudo mv forkspacer /usr/local/bin/
+          forkspacer version
+          ```
+
+          ### Linux (arm64)
+          ```bash
+          curl -sSL https://github.com/forkspacer/cli/releases/download/${{ env.VERSION }}/forkspacer-linux-arm64.tar.gz | tar xz
+          sudo mv forkspacer /usr/local/bin/
+          forkspacer version
+          ```
+
+          ### Windows
+          Download `forkspacer-windows-amd64.zip`, extract, and add to your PATH.
+
+          ### Using install script (macOS/Linux)
+          ```bash
+          curl -sSL https://raw.githubusercontent.com/forkspacer/cli/main/scripts/install.sh | bash
+          ```
+
+          ## Verify Installation
+
+          ```bash
+          forkspacer version
+          ```
+
+          ## Quick Start
+
+          ```bash
+          # List workspaces
+          forkspacer workspace list
+
+          # Create a new workspace
+          forkspacer workspace create dev-env
+
+          # Create with auto-hibernation
+          forkspacer workspace create dev-env \
+            --hibernation-schedule "0 18 * * *" \
+            --wake-schedule "0 8 * * *"
+
+          # Enable shell completion
+          forkspacer completion zsh > /usr/local/share/zsh/site-functions/_forkspacer
+          ```
+
+          ## What's Included
+
+          - Complete workspace management (create, list, get, delete, hibernate, wake)
+          - Beautiful terminal output with colors and progress indicators
+          - Client-side validation for fast feedback
+          - Shell completion (bash, zsh, fish, powershell)
+          - Direct Kubernetes integration
+
+          ## Documentation
+
+          - [Getting Started](https://github.com/forkspacer/cli#getting-started)
+          - [Command Reference](https://github.com/forkspacer/cli#commands)
+          - [Examples](https://github.com/forkspacer/cli#examples)
+
+          ## Checksums
+
+          See `checksums.txt` for SHA256 checksums of all binaries.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ env.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
