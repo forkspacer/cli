@@ -2,9 +2,21 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/install.sh'
+      - 'LICENSE'
+      - '.gitignore'
   push:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/install.sh'
+      - 'LICENSE'
+      - '.gitignore'
 
 permissions:
   contents: read
