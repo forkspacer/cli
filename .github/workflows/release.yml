@@ -66,11 +66,15 @@ jobs:
             # Create tar.gz for unix, zip for windows
             cd dist
             if [ "$GOOS" = "windows" ]; then
-              zip "${output_name%.exe}.zip" "$output_name"
-              rm "$output_name"
+              # Rename to generic forkspacer.exe before zipping
+              mv "$output_name" forkspacer.exe
+              zip "${output_name%.exe}.zip" forkspacer.exe
+              rm forkspacer.exe
             else
-              tar czf "${output_name}.tar.gz" "$output_name"
-              rm "$output_name"
+              # Rename to generic forkspacer before tarballing
+              mv "$output_name" forkspacer
+              tar czf "${output_name}.tar.gz" forkspacer
+              rm forkspacer
             fi
             cd ..
           done
