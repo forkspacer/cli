@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/forkspacer/cli/cmd"
-	"github.com/forkspacer/cli/pkg/k8s"
 	"github.com/forkspacer/cli/pkg/printer"
 	"github.com/forkspacer/cli/pkg/styles"
+	workspaceService "github.com/forkspacer/cli/pkg/workspace"
 )
 
 var wakeCmd = &cobra.Command{
@@ -38,7 +37,7 @@ func runWake(c *cobra.Command, args []string) error {
 	namespace := cmd.GetNamespace()
 
 	ctx := context.Background()
-	k8sClient, err := k8s.NewClient()
+	service, err := workspaceService.NewService()
 	if err != nil {
 		return fmt.Errorf("failed to connect to cluster: %w", err)
 	}
@@ -47,7 +46,7 @@ func runWake(c *cobra.Command, args []string) error {
 	sp := printer.NewSpinner("Fetching workspace")
 	sp.Start()
 
-	workspace, err := k8sClient.GetWorkspace(ctx, name, namespace)
+	workspace, err := service.Get(ctx, name, namespace)
 	if err != nil {
 		sp.Error("Failed to fetch workspace")
 		return err
@@ -63,15 +62,12 @@ func runWake(c *cobra.Command, args []string) error {
 
 	sp.Success("Workspace found")
 
-	// Patch workspace to set hibernated=false
+	// Wake up workspace
 	sp = printer.NewSpinner("Waking up workspace")
 	sp.Start()
 
-	patch := client.MergeFrom(workspace.DeepCopy())
-	awake := false
-	workspace.Spec.Hibernated = &awake
-
-	if err := k8sClient.PatchWorkspace(ctx, workspace, patch); err != nil {
+	_, err = service.SetHibernation(ctx, name, namespace, false)
+	if err != nil {
 		sp.Error("Failed to wake workspace")
 		return err
 	}

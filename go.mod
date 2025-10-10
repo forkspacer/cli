@@ -1,12 +1,11 @@
 module github.com/forkspacer/cli
 
-go 1.24.5
-
-toolchain go1.24.8
+go 1.25.0
 
 require (
 	github.com/briandowns/spinner v1.23.2
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/forkspacer/api-server v1.0.0
 	github.com/forkspacer/forkspacer v0.1.5
 	github.com/muesli/termenv v0.16.0
 	github.com/olekukonko/tablewriter v1.1.0

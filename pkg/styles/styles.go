@@ -84,16 +84,16 @@ var (
 
 // Common symbols
 const (
-	SymbolSuccess   = "✓"
-	SymbolError     = "✗"
-	SymbolWarning   = "⚠"
-	SymbolInfo      = "ℹ"
-	SymbolSpinner   = "⏳"
-	SymbolArrow     = "→"
-	SymbolBullet    = "•"
-	SymbolCheckbox  = "☐"
-	SymbolChecked   = "☑"
-	SymbolSparkles  = "✨"
+	SymbolSuccess  = "✓"
+	SymbolError    = "✗"
+	SymbolWarning  = "⚠"
+	SymbolInfo     = "ℹ"
+	SymbolSpinner  = "⏳"
+	SymbolArrow    = "→"
+	SymbolBullet   = "•"
+	SymbolCheckbox = "☐"
+	SymbolChecked  = "☑"
+	SymbolSparkles = "✨"
 )
 
 // Helper functions for styled output

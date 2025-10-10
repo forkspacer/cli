@@ -27,11 +27,11 @@ func ValidateCronSchedule(schedule string) error {
 // CronExamples returns common cron schedule examples
 func CronExamples() map[string]string {
 	return map[string]string{
-		"0 18 * * *":     "Every day at 6 PM",
-		"0 8 * * *":      "Every day at 8 AM",
-		"0 18 * * 1-5":   "Weekdays at 6 PM",
-		"0 9 * * 1":      "Every Monday at 9 AM",
-		"*/15 * * * *":   "Every 15 minutes",
-		"0 0 * * 0":      "Every Sunday at midnight",
+		"0 18 * * *":   "Every day at 6 PM",
+		"0 8 * * *":    "Every day at 8 AM",
+		"0 18 * * 1-5": "Weekdays at 6 PM",
+		"0 9 * * 1":    "Every Monday at 9 AM",
+		"*/15 * * * *": "Every 15 minutes",
+		"0 0 * * 0":    "Every Sunday at midnight",
 	}
 }

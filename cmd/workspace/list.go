@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/forkspacer/cli/cmd"
-	"github.com/forkspacer/cli/pkg/k8s"
 	"github.com/forkspacer/cli/pkg/printer"
 	"github.com/forkspacer/cli/pkg/styles"
+	workspaceService "github.com/forkspacer/cli/pkg/workspace"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -45,12 +45,12 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	client, err := k8s.NewClient()
+	service, err := workspaceService.NewService()
 	if err != nil {
 		return fmt.Errorf("failed to connect to cluster: %w", err)
 	}
 
-	workspaces, err := client.ListWorkspaces(ctx, namespace)
+	workspaces, err := service.List(ctx, namespace)
 	if err != nil {
 		return err
 	}
