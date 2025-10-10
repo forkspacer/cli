@@ -84,7 +84,7 @@ jobs:
           go build -v -o forkspacer-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} .
 
       - name: Verify binary
-        if: matrix.goos == 'linux'
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         run: |
           chmod +x forkspacer-${{ matrix.goos }}-${{ matrix.goarch }}
           ./forkspacer-${{ matrix.goos }}-${{ matrix.goarch }} version
