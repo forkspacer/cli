@@ -31,6 +31,8 @@ github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjT
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
 github.com/fatih/color v1.18.0 h1:S8gINlzdQ840/4pfAwic/ZE0djQEH3wM94VfqLTZcOM=
 github.com/fatih/color v1.18.0/go.mod h1:4FelSpRwEGDpQ12mAdzqdOukCy4u8WUtOY6lkT/6HfU=
+github.com/forkspacer/api-server v1.0.0 h1:COWTz+wsrkj6VT3AUUxT+KTvF9+NPF/wcEDz/s/7LAk=
+github.com/forkspacer/api-server v1.0.0/go.mod h1:Sy6Dw+Dh4heCCVzjvKu7xLDjLtUnLiWEjKNR6uuyTmw=
 github.com/forkspacer/forkspacer v0.1.5 h1:mMitpq+OuXel1PDLV7dy9LoL3rg3BJDtp20L5mp3Guk=
 github.com/forkspacer/forkspacer v0.1.5/go.mod h1:6o2B4+vNWaqZbBx/gKGESGV3jBXkZRsysGi0YkPhTM0=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=

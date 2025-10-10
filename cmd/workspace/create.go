@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/forkspacer/api-server/pkg/services/forkspacer"
 	batchv1 "github.com/forkspacer/forkspacer/api/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/spf13/cobra"
 
 	"github.com/forkspacer/cli/cmd"
-	"github.com/forkspacer/cli/pkg/k8s"
 	"github.com/forkspacer/cli/pkg/printer"
 	"github.com/forkspacer/cli/pkg/styles"
 	"github.com/forkspacer/cli/pkg/validation"
+	workspaceService "github.com/forkspacer/cli/pkg/workspace"
 )
 
 var (
@@ -116,64 +116,38 @@ func runCreate(c *cobra.Command, args []string) error {
 		sp.Success("Wake schedule is valid")
 	}
 
-	// Step 3: Connect to cluster
+	// Step 3: Connect to cluster and create service
 	sp = printer.NewSpinner("Connecting to Kubernetes cluster")
 	sp.Start()
 
 	ctx := context.Background()
-	client, err := k8s.NewClient()
+	service, err := workspaceService.NewService()
 	if err != nil {
 		sp.Error("Failed to connect to cluster")
 		return fmt.Errorf("kubernetes connection failed: %w", err)
 	}
-	sp.Success(fmt.Sprintf("Connected to cluster (context: %s)", client.Context))
+	sp.Success("Connected to cluster")
 
-	// Step 4: Check if operator is installed
-	sp = printer.NewSpinner("Checking Forkspacer operator installation")
-	sp.Start()
-	time.Sleep(200 * time.Millisecond)
+	// Step 4: Build workspace input
+	workspaceIn := buildWorkspaceInput(name, namespace)
 
-	if err := client.CheckOperatorInstalled(ctx); err != nil {
-		sp.Error("Forkspacer operator not found")
-		return fmt.Errorf("operator not installed: %w\n\nInstall with: helm install forkspacer forkspacer/forkspacer", err)
-	}
-	sp.Success("Forkspacer operator is installed")
-
-	// Step 5: Check if workspace already exists
-	sp = printer.NewSpinner("Checking if workspace already exists")
-	sp.Start()
-	time.Sleep(200 * time.Millisecond)
-
-	exists, err := client.WorkspaceExists(ctx, name, namespace)
-	if err != nil {
-		sp.Error("Failed to check workspace existence")
-		return err
-	}
-	if exists {
-		sp.Error("Workspace already exists")
-		return fmt.Errorf("workspace %s/%s already exists\n\nUse: forkspacer workspace get %s", namespace, name, name)
-	}
-	sp.Success("Workspace name is available")
-
-	// Step 6: Build workspace object
-	workspace := buildWorkspace(name, namespace)
-
-	// Step 7: Create workspace
+	// Step 5: Create workspace using api-server service
 	sp = printer.NewSpinner("Creating workspace resource")
 	sp.Start()
 
-	if err := client.CreateWorkspace(ctx, workspace); err != nil {
+	workspace, err := service.Create(ctx, workspaceIn)
+	if err != nil {
 		sp.Error("Failed to create workspace")
-		return err
+		return fmt.Errorf("failed to create workspace: %w", err)
 	}
 	sp.Success("Workspace resource created")
 
-	// Step 8: Wait for ready (optional)
+	// Step 6: Wait for ready (optional)
 	if createWait {
 		sp = printer.NewSpinner("Waiting for workspace to become ready")
 		sp.Start()
 
-		if err := waitForWorkspaceReady(ctx, client, name, namespace, 2*time.Minute); err != nil {
+		if err := waitForWorkspaceReady(ctx, service, name, namespace, 2*time.Minute); err != nil {
 			sp.Error("Workspace did not become ready")
 			return err
 		}
@@ -186,59 +160,67 @@ func runCreate(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildWorkspace(name, namespace string) *batchv1.Workspace {
-	workspace := &batchv1.Workspace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: batchv1.WorkspaceSpec{
-			Type: batchv1.WorkspaceTypeKubernetes,
-			Connection: &batchv1.WorkspaceConnection{
-				Type: batchv1.WorkspaceConnectionType(createConnectionType),
-			},
+func buildWorkspaceInput(name, namespace string) forkspacer.WorkspaceCreateIn {
+	workspaceIn := forkspacer.WorkspaceCreateIn{
+		Name:       name,
+		Namespace:  &namespace,
+		Hibernated: false,
+		Connection: &forkspacer.WorkspaceCreateConnectionIn{
+			Type: createConnectionType,
 		},
 	}
 
 	// Add auto-hibernation if specified
 	if createHibernationSched != "" {
-		workspace.Spec.AutoHibernation = &batchv1.WorkspaceAutoHibernation{
+		workspaceIn.AutoHibernation = &forkspacer.WorkspaceAutoHibernationIn{
 			Enabled:  true,
 			Schedule: createHibernationSched,
 		}
 		if createWakeSched != "" {
-			workspace.Spec.AutoHibernation.WakeSchedule = &createWakeSched
+			workspaceIn.AutoHibernation.WakeSchedule = &createWakeSched
 		}
 	}
 
 	// Add fork reference if specified
 	if createFromWorkspace != "" {
-		workspace.Spec.From = &batchv1.WorkspaceFromReference{
+		workspaceIn.From = &forkspacer.ResourceReference{
 			Name:      createFromWorkspace,
 			Namespace: namespace,
 		}
 	}
 
-	return workspace
+	return workspaceIn
 }
 
-func waitForWorkspaceReady(ctx context.Context, client *k8s.Client, name, namespace string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+func waitForWorkspaceReady(ctx context.Context, service *workspaceService.Service, name, namespace string, timeout time.Duration) error {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
-	for time.Now().Before(deadline) {
-		ws, err := client.GetWorkspace(ctx, name, namespace)
-		if err != nil {
-			return err
+	timeoutCh := time.After(timeout)
+
+	for {
+		select {
+		case <-timeoutCh:
+			return fmt.Errorf("timeout waiting for workspace to become ready")
+		case <-ticker.C:
+			workspace, err := service.Get(ctx, name, namespace)
+			if err != nil {
+				continue // Workspace might not exist yet, keep waiting
+			}
+
+			if workspace.Status.Ready {
+				return nil
+			}
+
+			// Check if workspace is in a failed state
+			if workspace.Status.Phase == "failed" {
+				if workspace.Status.Message != nil {
+					return fmt.Errorf("workspace failed: %s", *workspace.Status.Message)
+				}
+				return fmt.Errorf("workspace entered failed state")
+			}
 		}
-
-		if ws.Status.Phase == batchv1.WorkspacePhaseReady && ws.Status.Ready {
-			return nil
-		}
-
-		time.Sleep(2 * time.Second)
 	}
-
-	return fmt.Errorf("timeout waiting for workspace to become ready")
 }
 
 func printSuccessSummary(workspace *batchv1.Workspace) {
@@ -284,7 +266,7 @@ func formatValidationError(name string, err error) error {
 	msg += fmt.Sprintf("\n  %s\n", styles.Key("Try:"))
 	msg += fmt.Sprintf("    %s\n", styles.Code("forkspacer workspace create dev-env"))
 
-	return fmt.Errorf(msg)
+	return fmt.Errorf("%s", msg)
 }
 
 func formatCronError(schedule string, err error) error {
@@ -296,5 +278,5 @@ func formatCronError(schedule string, err error) error {
 	}
 	msg += fmt.Sprintf("\n  %s https://crontab.guru\n", styles.Key("Learn more:"))
 
-	return fmt.Errorf(msg)
+	return fmt.Errorf("%s", msg)
 }

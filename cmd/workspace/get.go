@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/forkspacer/cli/cmd"
-	"github.com/forkspacer/cli/pkg/k8s"
 	"github.com/forkspacer/cli/pkg/styles"
+	workspaceService "github.com/forkspacer/cli/pkg/workspace"
+	"github.com/spf13/cobra"
 )
 
 var getCmd = &cobra.Command{
@@ -30,12 +30,12 @@ func runGet(c *cobra.Command, args []string) error {
 	namespace := cmd.GetNamespace()
 
 	ctx := context.Background()
-	client, err := k8s.NewClient()
+	service, err := workspaceService.NewService()
 	if err != nil {
 		return fmt.Errorf("failed to connect to cluster: %w", err)
 	}
 
-	workspace, err := client.GetWorkspace(ctx, name, namespace)
+	workspace, err := service.Get(ctx, name, namespace)
 	if err != nil {
 		return err
 	}

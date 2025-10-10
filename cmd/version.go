@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/spf13/cobra"
 	"github.com/forkspacer/cli/pkg/styles"
+	"github.com/spf13/cobra"
 )
 
 var (

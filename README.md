@@ -67,7 +67,7 @@ The CLI provides direct Kubernetes integration, beautiful terminal output, and f
 - 🎨 **Beautiful Output** - Styled terminal output with colors, spinners, and progress indicators
 - ⚡ **Fast Validation** - Client-side validation for instant feedback
 - 🚀 **Easy to Use** - Intuitive commands that feel natural
-- 🔧 **Direct K8s Access** - No API server required, uses your kubeconfig
+- 🔧 **Shared Business Logic** - Uses Forkspacer API server library for consistent operations
 - 🌍 **Cross-Platform** - Works on macOS, Linux, and Windows
 - 📝 **Shell Completion** - Tab completion for bash, zsh, fish, and powershell
 - 🔄 **Workspace Lifecycle** - Create, hibernate, wake, and manage workspaces
@@ -382,7 +382,7 @@ kubectl config get-contexts
 
 ### Prerequisites
 
-- Go 1.24 or later
+- Go 1.25 or later
 - Kubernetes cluster for testing
 - [Forkspacer Operator](https://github.com/forkspacer/forkspacer) installed
 
@@ -418,14 +418,34 @@ cli/
 │       ├── hibernate.go
 │       └── wake.go
 ├── pkg/                   # Shared packages
-│   ├── k8s/              # Kubernetes client wrapper
-│   ├── printer/          # Output formatting
-│   ├── styles/           # Terminal styling
-│   └── validation/       # Input validation
+│   ├── workspace/        # Workspace service wrapper (delegates to api-server)
+│   ├── printer/          # Output formatting (tables, spinners)
+│   ├── styles/           # Terminal styling (colors, layouts)
+│   └── validation/       # Input validation (DNS, cron)
 ├── .github/              # GitHub workflows & templates
 ├── scripts/              # Install scripts
 └── main.go               # Entry point
 ```
+
+### Architecture
+
+The CLI imports the Forkspacer API server's service layer as a library, providing a unified approach to workspace operations:
+
+```
+api-server/pkg/services/forkspacer (shared business logic)
+                ↓                           ↓
+         HTTP Handlers               CLI Wrapper Service
+         (for REST API)              (pkg/workspace/)
+                                            ↓
+                                     CLI Commands
+```
+
+**Benefits:**
+- Single source of truth for business logic
+- Type-safe compile-time checking
+- No network overhead for CLI operations
+- Consistent validation and error handling
+- Shared code maintenance between API and CLI
 
 ### Testing
 

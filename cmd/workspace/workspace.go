@@ -1,8 +1,8 @@
 package workspace
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/forkspacer/cli/cmd"
+	"github.com/spf13/cobra"
 )
 
 // WorkspaceCmd represents the workspace command
