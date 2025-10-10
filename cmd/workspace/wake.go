@@ -28,8 +28,9 @@ Examples:
 
   # Wake workspace in specific namespace
   forkspacer workspace wake staging -n production`,
-	Args: cobra.ExactArgs(1),
-	RunE: runWake,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: workspaceNameCompletion,
+	RunE:              runWake,
 }
 
 func runWake(c *cobra.Command, args []string) error {

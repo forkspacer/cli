@@ -1,11 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/forkspacer/cli/pkg/styles"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -39,6 +45,9 @@ func init() {
 		"Output format (table|json|yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
 		"Enable verbose output")
+
+	// Register namespace flag completion
+	rootCmd.RegisterFlagCompletionFunc("namespace", namespaceCompletionFunc)
 
 	// Custom help template with better styling
 	rootCmd.SetHelpTemplate(getHelpTemplate())
@@ -76,4 +85,38 @@ func GetOutput() string {
 // IsVerbose returns whether verbose mode is enabled
 func IsVerbose() bool {
 	return verbose
+}
+
+// namespaceCompletionFunc provides dynamic completion for namespace flag
+func namespaceCompletionFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Create k8s client
+	restConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	k8sClient, err := client.New(restConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// List all namespaces
+	ctx := context.Background()
+	namespaces := &corev1.NamespaceList{}
+	if err := k8sClient.List(ctx, namespaces); err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Extract namespace names
+	var names []string
+	for _, ns := range namespaces.Items {
+		names = append(names, ns.Name)
+	}
+
+	return names, cobra.ShellCompDirectiveNoFileComp
 }

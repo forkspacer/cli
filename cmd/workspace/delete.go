@@ -28,8 +28,9 @@ Examples:
 
   # Delete without confirmation
   forkspacer workspace delete dev-env --force`,
-	Args: cobra.ExactArgs(1),
-	RunE: runDelete,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: workspaceNameCompletion,
+	RunE:              runDelete,
 }
 
 func init() {

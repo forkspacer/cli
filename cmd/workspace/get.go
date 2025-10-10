@@ -21,8 +21,9 @@ Examples:
 
   # Get workspace in specific namespace
   forkspacer workspace get dev-env -n production`,
-	Args: cobra.ExactArgs(1),
-	RunE: runGet,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: workspaceNameCompletion,
+	RunE:              runGet,
 }
 
 func runGet(c *cobra.Command, args []string) error {

@@ -30,8 +30,9 @@ Examples:
 
   # Hibernate workspace in specific namespace
   forkspacer workspace hibernate staging -n production`,
-	Args: cobra.ExactArgs(1),
-	RunE: runHibernate,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: workspaceNameCompletion,
+	RunE:              runHibernate,
 }
 
 func runHibernate(c *cobra.Command, args []string) error {
