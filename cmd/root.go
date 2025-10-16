@@ -28,8 +28,7 @@ var rootCmd = &cobra.Command{
 	Long: styles.TitleStyle.Render("Forkspacer CLI") + "\n\n" +
 		"A cloud-native Kubernetes operator for dynamic workspace lifecycle management.\n" +
 		"Create, manage, and hibernate ephemeral development environments at scale.",
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	SilenceUsage: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
