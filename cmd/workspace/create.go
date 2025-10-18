@@ -187,6 +187,9 @@ func buildWorkspaceInput(name, namespace string) forkspacer.WorkspaceCreateIn {
 			Name:      createFromWorkspace,
 			Namespace: namespace,
 		}
+		// TODO: Wire up createMigrateData flag when API server supports it
+		// Currently the flag is defined but not yet supported in WorkspaceCreateIn
+		_ = createMigrateData
 	}
 
 	return workspaceIn

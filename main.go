@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/forkspacer/cli/cmd"
+	_ "github.com/forkspacer/cli/cmd/module"
 	_ "github.com/forkspacer/cli/cmd/workspace"
 )
 
