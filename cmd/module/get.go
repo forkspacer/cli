@@ -92,7 +92,7 @@ func runGet(c *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(styles.SubtitleStyle.Render("State"))
 	hibernatedStatus := "active"
-	if mod.Spec.Hibernated != nil && *mod.Spec.Hibernated {
+	if mod.Spec.Hibernated {
 		hibernatedStatus = "hibernated"
 	}
 	fmt.Printf("%s  %s\n", styles.Key("Hibernated:"), styles.Value(hibernatedStatus))

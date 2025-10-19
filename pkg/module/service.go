@@ -3,29 +3,21 @@ package module
 import (
 	"context"
 
-	"github.com/forkspacer/api-server/pkg/services/forkspacer"
 	batchv1 "github.com/forkspacer/forkspacer/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Service wraps api-server service and adds missing methods
+// Service provides operations for managing modules
 type Service struct {
-	apiService *forkspacer.ForkspacerModuleService
-	client     client.Client // For Get and other operations
+	client client.Client
 }
 
-// NewService creates a new module service wrapper
+// NewService creates a new module service
 func NewService() (*Service, error) {
-	// Create api-server service (for Create, Delete, List, Update)
-	apiService, err := forkspacer.NewForkspacerModuleService()
-	if err != nil {
-		return nil, err
-	}
-
-	// Create our own client for operations not supported by api-server
 	restConfig, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, err
@@ -45,19 +37,25 @@ func NewService() (*Service, error) {
 	}
 
 	return &Service{
-		apiService: apiService,
-		client:     k8sClient,
+		client: k8sClient,
 	}, nil
 }
 
-// Create delegates to api-server service
-func (s *Service) Create(ctx context.Context, moduleIn forkspacer.ModuleCreateIn) (*batchv1.Module, error) {
-	return s.apiService.Create(ctx, moduleIn)
-}
-
-// Delete delegates to api-server service
+// Delete deletes a module
 func (s *Service) Delete(ctx context.Context, name string, namespace *string) error {
-	return s.apiService.Delete(ctx, name, namespace)
+	ns := "default"
+	if namespace != nil {
+		ns = *namespace
+	}
+
+	module := &batchv1.Module{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	}
+
+	return s.client.Delete(ctx, module)
 }
 
 // List modules with optional namespace filtering
@@ -71,11 +69,6 @@ func (s *Service) List(ctx context.Context, namespace string) (*batchv1.ModuleLi
 
 	err := s.client.List(ctx, modules, opts...)
 	return modules, err
-}
-
-// Update delegates to api-server service
-func (s *Service) Update(ctx context.Context, updateIn forkspacer.ModuleUpdateIn) (*batchv1.Module, error) {
-	return s.apiService.Update(ctx, updateIn)
 }
 
 // Get fetches a single module
@@ -98,6 +91,9 @@ func (s *Service) CreateExistingHelmRelease(
 	workspaceName string,
 	workspaceNamespace string,
 	hibernated bool,
+	chartSourceGitRepo string,
+	chartSourceGitPath string,
+	chartSourceGitRevision string,
 ) (*batchv1.Module, error) {
 	module := &batchv1.Module{
 		ObjectMeta: ctrl.ObjectMeta{
@@ -109,13 +105,20 @@ func (s *Service) CreateExistingHelmRelease(
 				ExistingHelmRelease: &batchv1.ModuleSourceExistingHelmReleaseRef{
 					Name:      helmReleaseName,
 					Namespace: helmReleaseNamespace,
+					ChartSource: batchv1.ModuleSourceChartRef{
+						Git: &batchv1.ModuleSourceChartGit{
+							Repo:     chartSourceGitRepo,
+							Path:     chartSourceGitPath,
+							Revision: chartSourceGitRevision,
+						},
+					},
 				},
 			},
 			Workspace: batchv1.ModuleWorkspaceReference{
 				Name:      workspaceName,
 				Namespace: workspaceNamespace,
 			},
-			Hibernated: &hibernated,
+			Hibernated: hibernated,
 		},
 	}
 

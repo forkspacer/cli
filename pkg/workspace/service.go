@@ -3,32 +3,44 @@ package workspace
 import (
 	"context"
 
-	"github.com/forkspacer/api-server/pkg/services/forkspacer"
-	"github.com/forkspacer/api-server/pkg/utils"
 	batchv1 "github.com/forkspacer/forkspacer/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Service wraps api-server service and adds missing Get() method
-// TODO: Remove this wrapper when api-server adds Get() method
+// Service provides operations for managing workspaces
 type Service struct {
-	apiService *forkspacer.ForkspacerWorkspaceService
-	client     client.Client // Only for Get operation
+	client client.Client
 }
 
-// NewService creates a new workspace service wrapper
-func NewService() (*Service, error) {
-	// Create api-server service (for Create, Delete, List, Update)
-	apiService, err := forkspacer.NewForkspacerWorkspaceService()
-	if err != nil {
-		return nil, err
-	}
+// WorkspaceCreateInput defines the input for creating a workspace
+type WorkspaceCreateInput struct {
+	Name            string
+	Namespace       string
+	Hibernated      bool
+	ConnectionType  string
+	AutoHibernation *AutoHibernationInput
+	From            *FromWorkspaceInput
+}
 
-	// Create our own client for Get operation
-	// (api-server's client field is not exported)
+// AutoHibernationInput defines auto-hibernation configuration
+type AutoHibernationInput struct {
+	Enabled      bool
+	Schedule     string
+	WakeSchedule *string
+}
+
+// FromWorkspaceInput defines workspace forking configuration
+type FromWorkspaceInput struct {
+	Name      string
+	Namespace string
+}
+
+// NewService creates a new workspace service
+func NewService() (*Service, error) {
 	restConfig, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, err
@@ -48,25 +60,68 @@ func NewService() (*Service, error) {
 	}
 
 	return &Service{
-		apiService: apiService,
-		client:     k8sClient,
+		client: k8sClient,
 	}, nil
 }
 
-// Create delegates to api-server service
-func (s *Service) Create(ctx context.Context, workspaceIn forkspacer.WorkspaceCreateIn) (*batchv1.Workspace, error) {
-	return s.apiService.Create(ctx, workspaceIn)
+// Create creates a new workspace
+func (s *Service) Create(ctx context.Context, input WorkspaceCreateInput) (*batchv1.Workspace, error) {
+	workspace := &batchv1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      input.Name,
+			Namespace: input.Namespace,
+		},
+		Spec: batchv1.WorkspaceSpec{
+			Type:       batchv1.WorkspaceTypeKubernetes,
+			Hibernated: input.Hibernated,
+			Connection: batchv1.WorkspaceConnection{
+				Type: batchv1.WorkspaceConnectionType(input.ConnectionType),
+			},
+		},
+	}
+
+	// Add auto-hibernation if specified
+	if input.AutoHibernation != nil {
+		workspace.Spec.AutoHibernation = &batchv1.WorkspaceAutoHibernation{
+			Enabled:  input.AutoHibernation.Enabled,
+			Schedule: input.AutoHibernation.Schedule,
+		}
+		if input.AutoHibernation.WakeSchedule != nil {
+			workspace.Spec.AutoHibernation.WakeSchedule = input.AutoHibernation.WakeSchedule
+		}
+	}
+
+	// Add fork reference if specified
+	if input.From != nil {
+		workspace.Spec.From = &batchv1.WorkspaceFromReference{
+			Name:      input.From.Name,
+			Namespace: input.From.Namespace,
+		}
+	}
+
+	err := s.client.Create(ctx, workspace)
+	return workspace, err
 }
 
-// Delete delegates to api-server service
+// Delete deletes a workspace
 func (s *Service) Delete(ctx context.Context, name string, namespace *string) error {
-	return s.apiService.Delete(ctx, name, namespace)
+	ns := "default"
+	if namespace != nil {
+		ns = *namespace
+	}
+
+	workspace := &batchv1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	}
+
+	return s.client.Delete(ctx, workspace)
 }
 
 // List workspaces with optional namespace filtering
-// TODO: Add namespace parameter to api-server's List() method
 func (s *Service) List(ctx context.Context, namespace string) (*batchv1.WorkspaceList, error) {
-	// Use our client for namespace filtering (api-server doesn't support this yet)
 	workspaces := &batchv1.WorkspaceList{}
 
 	var opts []client.ListOption
@@ -78,13 +133,7 @@ func (s *Service) List(ctx context.Context, namespace string) (*batchv1.Workspac
 	return workspaces, err
 }
 
-// Update delegates to api-server service
-func (s *Service) Update(ctx context.Context, updateIn forkspacer.WorkspaceUpdateIn) (*batchv1.Workspace, error) {
-	return s.apiService.Update(ctx, updateIn)
-}
-
 // Get fetches a single workspace
-// TODO: Remove when api-server adds Get() method
 func (s *Service) Get(ctx context.Context, name, namespace string) (*batchv1.Workspace, error) {
 	workspace := &batchv1.Workspace{}
 	err := s.client.Get(ctx, client.ObjectKey{
@@ -94,12 +143,15 @@ func (s *Service) Get(ctx context.Context, name, namespace string) (*batchv1.Wor
 	return workspace, err
 }
 
-// SetHibernation is a helper to set hibernation state
-// Uses api-server's Update with retry logic
+// SetHibernation updates the hibernation state of a workspace
 func (s *Service) SetHibernation(ctx context.Context, name, namespace string, hibernated bool) (*batchv1.Workspace, error) {
-	return s.apiService.Update(ctx, forkspacer.WorkspaceUpdateIn{
-		Name:       name,
-		Namespace:  &namespace,
-		Hibernated: utils.ToPtr(hibernated),
-	})
+	workspace, err := s.Get(ctx, name, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	workspace.Spec.Hibernated = hibernated
+
+	err = s.client.Update(ctx, workspace)
+	return workspace, err
 }

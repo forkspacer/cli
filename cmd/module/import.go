@@ -3,258 +3,382 @@ package module
 import (
 	"context"
 	"fmt"
-	"time"
 
-	batchv1 "github.com/forkspacer/forkspacer/api/v1"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/forkspacer/cli/cmd"
 	"github.com/forkspacer/cli/pkg/module"
-	"github.com/forkspacer/cli/pkg/printer"
 	"github.com/forkspacer/cli/pkg/styles"
-	"github.com/forkspacer/cli/pkg/validation"
 )
 
-var (
-	importHelmRelease          string
-	importHelmReleaseNamespace string
-	importWorkspace            string
-	importWorkspaceNamespace   string
-	importHibernated           bool
-	importWait                 bool
+type chartSourceType string
+
+const (
+	chartSourceGit    chartSourceType = "Git Repository"
+	chartSourcePublic chartSourceType = "Public Chart Repository"
 )
 
 var importCmd = &cobra.Command{
-	Use:   "import [name]",
-	Short: "Import an existing Helm release as a Forkspacer module",
-	Long: `Import an existing Helm release to be managed by Forkspacer.
+	Use:   "import",
+	Short: "Interactively import an existing Helm release",
+	Long: `Interactively import an existing Helm release to be managed by Forkspacer.
 
-This creates a Module resource that references an existing Helm release,
-allowing Forkspacer to manage its lifecycle (hibernation, forking, etc.).
-
-The imported module will:
-  • Reference the existing Helm release
-  • Be associated with a workspace
-  • Support hibernation and lifecycle management
+This command will guide you through:
+  • Selecting a namespace
+  • Choosing a Helm release from that namespace
+  • Providing chart source information (Git or public chart repo)
+  • Configuring workspace association
 
 Examples:
-  # Import a Helm release from the default namespace
-  forkspacer import my-module \
-    --helm-release my-release \
-    --workspace dev-env
-
-  # Import from a specific namespace
-  forkspacer import my-module \
-    --helm-release my-release \
-    --helm-release-namespace apps \
-    --workspace dev-env \
-    --workspace-namespace workspaces
-
-  # Import in hibernated state
-  forkspacer import my-module \
-    --helm-release my-release \
-    --workspace dev-env \
-    --hibernated`,
-	Args: validateImportArgs,
+  # Start interactive import
+  forkspacer import`,
 	RunE: runImport,
 }
 
-func validateImportArgs(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("accepts 1 arg(s), received 0\n\nUsage:\n  forkspacer import <name> --helm-release <release> --workspace <workspace>\n\nExample:\n  forkspacer import my-module --helm-release my-release --workspace dev-env")
-	}
-	if len(args) > 1 {
-		return fmt.Errorf("accepts 1 arg(s), received %d", len(args))
-	}
-	return nil
-}
-
 func init() {
-	importCmd.Flags().StringVar(&importHelmRelease, "helm-release", "",
-		"Name of the existing Helm release to import (required)")
-	importCmd.Flags().StringVar(&importHelmReleaseNamespace, "helm-release-namespace", "default",
-		"Namespace of the Helm release")
-	importCmd.Flags().StringVar(&importWorkspace, "workspace", "",
-		"Workspace to associate this module with (required)")
-	importCmd.Flags().StringVar(&importWorkspaceNamespace, "workspace-namespace", "",
-		"Namespace of the workspace (defaults to module namespace)")
-	importCmd.Flags().BoolVar(&importHibernated, "hibernated", false,
-		"Import in hibernated state")
-	importCmd.Flags().BoolVar(&importWait, "wait", false,
-		"Wait for module to become ready")
-
-	importCmd.MarkFlagRequired("helm-release")
-	importCmd.MarkFlagRequired("workspace")
-
-	// Add to root command directly (forkspacer import) instead of as subcommand
+	// Add to root command directly (forkspacer import)
 	cmd.GetRootCmd().AddCommand(importCmd)
 }
 
+type importConfig struct {
+	moduleName           string
+	namespace            string
+	helmRelease          string
+	helmReleaseNamespace string
+	workspace            string
+	workspaceNamespace   string
+	chartSourceType      chartSourceType
+	gitRepo              string
+	gitPath              string
+	gitRevision          string
+	publicChartRepo      string
+	publicChartName      string
+	publicChartVersion   string
+	hibernated           bool
+}
+
 func runImport(c *cobra.Command, args []string) error {
-	name := args[0]
-	namespace := cmd.GetNamespace()
-
-	// Default workspace namespace to module namespace if not specified
-	if importWorkspaceNamespace == "" {
-		importWorkspaceNamespace = namespace
-	}
-
-	// Print header
-	fmt.Println()
-	fmt.Println(styles.TitleStyle.Render(fmt.Sprintf("%s Importing module %s", styles.SymbolSparkles, name)))
-	fmt.Println()
-
-	// Step 1: Validate module name
-	sp := printer.NewSpinner("Validating module name")
-	sp.Start()
-	time.Sleep(200 * time.Millisecond) // Brief pause for UX
-
-	if err := validation.ValidateDNS1123Subdomain(name); err != nil {
-		sp.Stop()
-		return formatValidationError(name, err)
-	}
-	sp.Success("Module name is valid")
-
-	// Step 2: Validate Helm release name
-	sp = printer.NewSpinner("Validating Helm release name")
-	sp.Start()
-	time.Sleep(200 * time.Millisecond)
-
-	if err := validation.ValidateDNS1123Subdomain(importHelmRelease); err != nil {
-		sp.Stop()
-		return formatValidationError(importHelmRelease, err)
-	}
-	sp.Success("Helm release name is valid")
-
-	// Step 3: Connect to cluster and create service
-	sp = printer.NewSpinner("Connecting to Kubernetes cluster")
-	sp.Start()
-
 	ctx := context.Background()
+
+	// Initialize Kubernetes client
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get kubeconfig: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	config := &importConfig{
+		namespace: cmd.GetNamespace(),
+	}
+
+	// Step 1: Select namespace
+	fmt.Println()
+	fmt.Println(styles.TitleStyle.Render("Import Helm Release"))
+	fmt.Println()
+
+	namespaces, err := getNamespaces(ctx, clientset)
+	if err != nil {
+		return fmt.Errorf("failed to get namespaces: %w", err)
+	}
+
+	nsOptions := make([]huh.Option[string], len(namespaces))
+	for i, ns := range namespaces {
+		nsOptions[i] = huh.NewOption(ns, ns)
+	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select namespace").
+				Options(nsOptions...).
+				Value(&config.helmReleaseNamespace),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Step 2: Select Helm release
+	releases, err := getHelmReleases(ctx, config.helmReleaseNamespace)
+	if err != nil {
+		return fmt.Errorf("failed to get Helm releases: %w", err)
+	}
+
+	if len(releases) == 0 {
+		return fmt.Errorf("no Helm releases found in namespace %s", config.helmReleaseNamespace)
+	}
+
+	releaseOptions := make([]huh.Option[string], len(releases))
+	for i, release := range releases {
+		releaseOptions[i] = huh.NewOption(release, release)
+	}
+
+	form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select Helm release").
+				Options(releaseOptions...).
+				Value(&config.helmRelease),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Step 3: Choose chart source type
+	form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[chartSourceType]().
+				Title("Select chart source type").
+				Options(
+					huh.NewOption("Git Repository", chartSourceGit),
+					huh.NewOption("Public Chart Repository", chartSourcePublic),
+				).
+				Value(&config.chartSourceType),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Step 4: Get chart source details
+	if config.chartSourceType == chartSourceGit {
+		form = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Git Repository URL").
+					Placeholder("https://github.com/org/repo").
+					Value(&config.gitRepo).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("git repository URL is required")
+						}
+						return nil
+					}),
+				huh.NewInput().
+					Title("Chart Path in Repository").
+					Placeholder("charts/app or helm").
+					Value(&config.gitPath).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("chart path is required")
+						}
+						return nil
+					}),
+				huh.NewInput().
+					Title("Git Revision").
+					Placeholder("main, master, v1.0.0, etc.").
+					Value(&config.gitRevision).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("git revision is required")
+						}
+						return nil
+					}),
+			),
+		)
+	} else {
+		form = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Chart Repository URL").
+					Placeholder("https://charts.helm.sh/stable").
+					Value(&config.publicChartRepo).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("chart repository URL is required")
+						}
+						return nil
+					}),
+				huh.NewInput().
+					Title("Chart Name").
+					Placeholder("nginx, postgresql, etc.").
+					Value(&config.publicChartName).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("chart name is required")
+						}
+						return nil
+					}),
+				huh.NewInput().
+					Title("Chart Version").
+					Placeholder("1.0.0").
+					Value(&config.publicChartVersion).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("chart version is required")
+						}
+						return nil
+					}),
+			),
+		)
+	}
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Step 5: Module configuration
+	config.moduleName = config.helmRelease // Default to helm release name
+	config.namespace = cmd.GetNamespace()
+
+	form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Module Name").
+				Placeholder(config.helmRelease).
+				Value(&config.moduleName).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("module name is required")
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("Module Namespace").
+				Placeholder(config.namespace).
+				Value(&config.namespace),
+			huh.NewInput().
+				Title("Workspace Name").
+				Placeholder("my-workspace").
+				Value(&config.workspace).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("workspace name is required")
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("Workspace Namespace").
+				Placeholder(config.namespace).
+				Value(&config.workspaceNamespace),
+			huh.NewConfirm().
+				Title("Import in hibernated state?").
+				Value(&config.hibernated),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Default values
+	if config.namespace == "" {
+		config.namespace = cmd.GetNamespace()
+	}
+	if config.workspaceNamespace == "" {
+		config.workspaceNamespace = config.namespace
+	}
+
+	// Step 6: Create the module
+	return createModuleFromConfig(ctx, config)
+}
+
+func getNamespaces(ctx context.Context, clientset *kubernetes.Clientset) ([]string, error) {
+	nsList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	namespaces := make([]string, 0, len(nsList.Items))
+	for _, ns := range nsList.Items {
+		namespaces = append(namespaces, ns.Name)
+	}
+
+	return namespaces, nil
+}
+
+func getHelmReleases(ctx context.Context, namespace string) ([]string, error) {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// List secrets with Helm label
+	secrets, err := clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "owner=helm",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract unique release names
+	releaseMap := make(map[string]bool)
+	for _, secret := range secrets.Items {
+		if name, ok := secret.Labels["name"]; ok {
+			releaseMap[name] = true
+		}
+	}
+
+	releases := make([]string, 0, len(releaseMap))
+	for release := range releaseMap {
+		releases = append(releases, release)
+	}
+
+	return releases, nil
+}
+
+func createModuleFromConfig(ctx context.Context, config *importConfig) error {
+	fmt.Println()
+	fmt.Println(styles.TitleStyle.Render(fmt.Sprintf("%s Creating module %s", styles.SymbolSparkles, config.moduleName)))
+	fmt.Println()
+
 	service, err := module.NewService()
 	if err != nil {
-		sp.Error("Failed to connect to cluster")
-		return fmt.Errorf("kubernetes connection failed: %w", err)
+		return fmt.Errorf("failed to connect to cluster: %w", err)
 	}
-	sp.Success("Connected to cluster")
 
-	// Step 4: Create module resource
-	sp = printer.NewSpinner("Creating module resource")
-	sp.Start()
+	var moduleResource interface{}
 
-	moduleResource, err := service.CreateExistingHelmRelease(
-		ctx,
-		name,
-		namespace,
-		importHelmRelease,
-		importHelmReleaseNamespace,
-		importWorkspace,
-		importWorkspaceNamespace,
-		importHibernated,
-	)
+	if config.chartSourceType == chartSourceGit {
+		moduleResource, err = service.CreateExistingHelmRelease(
+			ctx,
+			config.moduleName,
+			config.namespace,
+			config.helmRelease,
+			config.helmReleaseNamespace,
+			config.workspace,
+			config.workspaceNamespace,
+			config.hibernated,
+			config.gitRepo,
+			config.gitPath,
+			config.gitRevision,
+		)
+	} else {
+		// For public chart repo, we'll need to add this functionality to the service
+		// For now, return an error
+		return fmt.Errorf("public chart repository import is not yet implemented")
+	}
+
 	if err != nil {
-		sp.Error("Failed to create module")
 		return fmt.Errorf("failed to create module: %w", err)
 	}
-	sp.Success("Module resource created")
 
-	// Step 5: Wait for ready (optional)
-	if importWait {
-		sp = printer.NewSpinner("Waiting for module to become ready")
-		sp.Start()
-
-		if err := waitForModuleReady(ctx, service, name, namespace, 2*time.Minute); err != nil {
-			sp.Error("Module did not become ready")
-			return err
-		}
-		sp.Success("Module is ready")
-	}
-
-	// Print summary
-	printImportSummary(moduleResource)
-
-	return nil
-}
-
-func waitForModuleReady(ctx context.Context, service *module.Service, name, namespace string, timeout time.Duration) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	timeoutCh := time.After(timeout)
-
-	for {
-		select {
-		case <-timeoutCh:
-			return fmt.Errorf("timeout waiting for module to become ready")
-		case <-ticker.C:
-			mod, err := service.Get(ctx, name, namespace)
-			if err != nil {
-				continue // Module might not exist yet, keep waiting
-			}
-
-			if mod.Status.Phase == batchv1.ModulePhaseReady {
-				return nil
-			}
-
-			// Check if module is in a failed state
-			if mod.Status.Phase == batchv1.ModulePhaseFailed {
-				if mod.Status.Message != nil {
-					return fmt.Errorf("module failed: %s", *mod.Status.Message)
-				}
-				return fmt.Errorf("module entered failed state")
-			}
-		}
-	}
-}
-
-func printImportSummary(mod *batchv1.Module) {
+	// Print success
 	fmt.Println()
-	fmt.Println(styles.Divider())
-	fmt.Println()
-
-	fmt.Printf("%s  %s\n", styles.Key("Name:"), styles.Value(mod.Name))
-	fmt.Printf("%s  %s\n", styles.Key("Namespace:"), styles.Value(mod.Namespace))
-
-	if mod.Spec.Source.ExistingHelmRelease != nil {
-		fmt.Printf("%s  %s\n", styles.Key("Source:"), styles.Value("existing-helm-release"))
-		fmt.Printf("  %s  %s\n", styles.Key("Release:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Name))
-		if mod.Spec.Source.ExistingHelmRelease.Namespace != "" {
-			fmt.Printf("  %s  %s\n", styles.Key("Release Namespace:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Namespace))
-		}
-	}
-
-	fmt.Printf("%s  %s/%s\n",
-		styles.Key("Workspace:"),
-		styles.Value(mod.Spec.Workspace.Namespace),
-		styles.Value(mod.Spec.Workspace.Name))
-
-	hibernatedStatus := "active"
-	if mod.Spec.Hibernated != nil && *mod.Spec.Hibernated {
-		hibernatedStatus = "hibernated"
-	}
-	fmt.Printf("%s  %s\n", styles.Key("State:"), styles.Value(hibernatedStatus))
-
+	fmt.Println(styles.SuccessStyle.Render("✓ Module created successfully"))
 	fmt.Println()
 	fmt.Println(styles.SubtitleStyle.Render("Next steps:"))
-	fmt.Printf("  %s %s\n", styles.SymbolArrow, styles.Code(fmt.Sprintf("forkspacer module get %s", mod.Name)))
-	fmt.Printf("  %s %s\n", styles.SymbolArrow, styles.Code(fmt.Sprintf("forkspacer workspace get %s", mod.Spec.Workspace.Name)))
-
+	fmt.Printf("  %s %s\n", styles.SymbolArrow, styles.Code(fmt.Sprintf("forkspacer module get %s", config.moduleName)))
+	fmt.Printf("  %s %s\n", styles.SymbolArrow, styles.Code(fmt.Sprintf("forkspacer workspace get %s", config.workspace)))
 	fmt.Println()
-	fmt.Println(styles.MutedStyle.Render("Documentation: https://forkspacer.com/docs/modules"))
-	fmt.Println()
-}
 
-func formatValidationError(name string, err error) error {
-	msg := fmt.Sprintf("\n%s\n\n", styles.Error("Invalid name"))
-	msg += fmt.Sprintf("  The name %s doesn't meet DNS-1123 requirements.\n\n", styles.Code(name))
-	msg += fmt.Sprintf("  %s\n", styles.Key("Requirements:"))
-	for _, req := range validation.DNS1123Requirements() {
-		msg += fmt.Sprintf("    %s %s\n", styles.SymbolBullet, req)
-	}
-	msg += fmt.Sprintf("\n  %s\n", styles.Key("Valid examples:"))
-	for _, example := range validation.DNS1123Examples() {
-		msg += fmt.Sprintf("    %s %s\n", styles.SymbolBullet, styles.Code(example))
-	}
-
-	return fmt.Errorf("%s", msg)
+	_ = moduleResource // Suppress unused variable warning
+	return nil
 }

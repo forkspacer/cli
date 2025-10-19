@@ -55,7 +55,7 @@ func runHibernate(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if workspace.Spec.Hibernated != nil && *workspace.Spec.Hibernated {
+	if workspace.Spec.Hibernated {
 		sp.Stop()
 		fmt.Println()
 		fmt.Println(styles.Info(fmt.Sprintf("Workspace %s is already hibernated", name)))

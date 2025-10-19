@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/forkspacer/api-server/pkg/services/forkspacer"
 	batchv1 "github.com/forkspacer/forkspacer/api/v1"
 	"github.com/spf13/cobra"
 
@@ -160,19 +159,17 @@ func runCreate(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildWorkspaceInput(name, namespace string) forkspacer.WorkspaceCreateIn {
-	workspaceIn := forkspacer.WorkspaceCreateIn{
-		Name:       name,
-		Namespace:  &namespace,
-		Hibernated: false,
-		Connection: &forkspacer.WorkspaceCreateConnectionIn{
-			Type: createConnectionType,
-		},
+func buildWorkspaceInput(name, namespace string) workspaceService.WorkspaceCreateInput {
+	workspaceIn := workspaceService.WorkspaceCreateInput{
+		Name:           name,
+		Namespace:      namespace,
+		Hibernated:     false,
+		ConnectionType: createConnectionType,
 	}
 
 	// Add auto-hibernation if specified
 	if createHibernationSched != "" {
-		workspaceIn.AutoHibernation = &forkspacer.WorkspaceAutoHibernationIn{
+		workspaceIn.AutoHibernation = &workspaceService.AutoHibernationInput{
 			Enabled:  true,
 			Schedule: createHibernationSched,
 		}
@@ -183,12 +180,12 @@ func buildWorkspaceInput(name, namespace string) forkspacer.WorkspaceCreateIn {
 
 	// Add fork reference if specified
 	if createFromWorkspace != "" {
-		workspaceIn.From = &forkspacer.ResourceReference{
+		workspaceIn.From = &workspaceService.FromWorkspaceInput{
 			Name:      createFromWorkspace,
 			Namespace: namespace,
 		}
 		// TODO: Wire up createMigrateData flag when API server supports it
-		// Currently the flag is defined but not yet supported in WorkspaceCreateIn
+		// Currently the flag is defined but not yet supported in WorkspaceCreateInput
 		_ = createMigrateData
 	}
 

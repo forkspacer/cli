@@ -71,7 +71,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	for _, ws := range workspaces.Items {
 		hibernated := "false"
-		if ws.Spec.Hibernated != nil && *ws.Spec.Hibernated {
+		if ws.Spec.Hibernated {
 			hibernated = "true"
 		}
 

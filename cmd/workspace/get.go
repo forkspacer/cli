@@ -60,7 +60,7 @@ func runGet(c *cobra.Command, args []string) error {
 	fmt.Printf("  %s  %s\n", styles.Key("Connection:"), styles.Value(string(workspace.Spec.Connection.Type)))
 
 	hibernated := "false"
-	if workspace.Spec.Hibernated != nil && *workspace.Spec.Hibernated {
+	if workspace.Spec.Hibernated {
 		hibernated = "true"
 	}
 	fmt.Printf("  %s  %s\n", styles.Key("Hibernated:"), styles.Value(hibernated))
