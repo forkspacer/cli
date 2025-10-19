@@ -125,3 +125,66 @@ func (s *Service) CreateExistingHelmRelease(
 	err := s.client.Create(ctx, module)
 	return module, err
 }
+
+// CreateExistingHelmReleaseWithChartRepo creates a module that imports an existing Helm release using a chart repository
+func (s *Service) CreateExistingHelmReleaseWithChartRepo(
+	ctx context.Context,
+	name string,
+	namespace string,
+	helmReleaseName string,
+	helmReleaseNamespace string,
+	workspaceName string,
+	workspaceNamespace string,
+	hibernated bool,
+	chartRepoURL string,
+	chartName string,
+	chartVersion string,
+	authSecretName string,
+	authSecretNamespace string,
+) (*batchv1.Module, error) {
+	chartRepo := &batchv1.ModuleSourceChartRepository{
+		URL:     chartRepoURL,
+		Chart:   chartName,
+		Version: nil,
+	}
+
+	if chartVersion != "" {
+		chartRepo.Version = &chartVersion
+	}
+
+	// Add auth if secret is provided
+	if authSecretName != "" {
+		chartRepo.Auth = &batchv1.ModuleSourceChartRepositoryAuth{
+			SecretRef: &batchv1.ModuleSourceChartRepositoryAuthSecretRef{
+				Name:      authSecretName,
+				Namespace: authSecretNamespace,
+			},
+		}
+	}
+
+	module := &batchv1.Module{
+		ObjectMeta: ctrl.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: batchv1.ModuleSpec{
+			Source: batchv1.ModuleSource{
+				ExistingHelmRelease: &batchv1.ModuleSourceExistingHelmReleaseRef{
+					Name:      helmReleaseName,
+					Namespace: helmReleaseNamespace,
+					ChartSource: batchv1.ModuleSourceChartRef{
+						Repository: chartRepo,
+					},
+				},
+			},
+			Workspace: batchv1.ModuleWorkspaceReference{
+				Name:      workspaceName,
+				Namespace: workspaceNamespace,
+			},
+			Hibernated: hibernated,
+		},
+	}
+
+	err := s.client.Create(ctx, module)
+	return module, err
+}

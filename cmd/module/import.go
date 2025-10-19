@@ -58,6 +58,8 @@ type importConfig struct {
 	publicChartRepo      string
 	publicChartName      string
 	publicChartVersion   string
+	chartRepoAuthSecret  string
+	chartRepoAuthSecretNS string
 	hibernated           bool
 }
 
@@ -221,6 +223,16 @@ func runImport(c *cobra.Command, args []string) error {
 						}
 						return nil
 					}),
+				huh.NewInput().
+					Title("Auth Secret Name (optional)").
+					Description("Leave empty for public repos, provide secret name for private repos").
+					Placeholder("my-harbor-secret").
+					Value(&config.chartRepoAuthSecret),
+				huh.NewInput().
+					Title("Auth Secret Namespace (optional)").
+					Description("Namespace where the auth secret is located").
+					Placeholder("default").
+					Value(&config.chartRepoAuthSecretNS),
 			),
 		)
 	}
@@ -361,9 +373,27 @@ func createModuleFromConfig(ctx context.Context, config *importConfig) error {
 			config.gitRevision,
 		)
 	} else {
-		// For public chart repo, we'll need to add this functionality to the service
-		// For now, return an error
-		return fmt.Errorf("public chart repository import is not yet implemented")
+		// Set default namespace for auth secret if not provided
+		authSecretNS := config.chartRepoAuthSecretNS
+		if authSecretNS == "" && config.chartRepoAuthSecret != "" {
+			authSecretNS = config.namespace
+		}
+
+		moduleResource, err = service.CreateExistingHelmReleaseWithChartRepo(
+			ctx,
+			config.moduleName,
+			config.namespace,
+			config.helmRelease,
+			config.helmReleaseNamespace,
+			config.workspace,
+			config.workspaceNamespace,
+			config.hibernated,
+			config.publicChartRepo,
+			config.publicChartName,
+			config.publicChartVersion,
+			config.chartRepoAuthSecret,
+			authSecretNS,
+		)
 	}
 
 	if err != nil {
