@@ -101,16 +101,16 @@ func (s *Service) CreateExistingHelmRelease(
 			Namespace: namespace,
 		},
 		Spec: batchv1.ModuleSpec{
-			Source: batchv1.ModuleSource{
-				ExistingHelmRelease: &batchv1.ModuleSourceExistingHelmReleaseRef{
+			Helm: &batchv1.ModuleSpecHelm{
+				ExistingRelease: &batchv1.ModuleSpecHelmExistingRelease{
 					Name:      helmReleaseName,
 					Namespace: helmReleaseNamespace,
-					ChartSource: batchv1.ModuleSourceChartRef{
-						Git: &batchv1.ModuleSourceChartGit{
-							Repo:     chartSourceGitRepo,
-							Path:     chartSourceGitPath,
-							Revision: chartSourceGitRevision,
-						},
+				},
+				Chart: batchv1.ModuleSpecHelmChart{
+					Git: &batchv1.ModuleSpecHelmChartGit{
+						Repo:     chartSourceGitRepo,
+						Path:     chartSourceGitPath,
+						Revision: chartSourceGitRevision,
 					},
 				},
 			},
@@ -142,7 +142,7 @@ func (s *Service) CreateExistingHelmReleaseWithChartRepo(
 	authSecretName string,
 	authSecretNamespace string,
 ) (*batchv1.Module, error) {
-	chartRepo := &batchv1.ModuleSourceChartRepository{
+	chartRepo := &batchv1.ModuleSpecHelmChartRepo{
 		URL:     chartRepoURL,
 		Chart:   chartName,
 		Version: nil,
@@ -154,11 +154,9 @@ func (s *Service) CreateExistingHelmReleaseWithChartRepo(
 
 	// Add auth if secret is provided
 	if authSecretName != "" {
-		chartRepo.Auth = &batchv1.ModuleSourceChartRepositoryAuth{
-			SecretRef: &batchv1.ModuleSourceChartRepositoryAuthSecretRef{
-				Name:      authSecretName,
-				Namespace: authSecretNamespace,
-			},
+		chartRepo.Auth = &batchv1.ModuleSpecHelmChartRepoAuth{
+			Name:      authSecretName,
+			Namespace: authSecretNamespace,
 		}
 	}
 
@@ -168,13 +166,13 @@ func (s *Service) CreateExistingHelmReleaseWithChartRepo(
 			Namespace: namespace,
 		},
 		Spec: batchv1.ModuleSpec{
-			Source: batchv1.ModuleSource{
-				ExistingHelmRelease: &batchv1.ModuleSourceExistingHelmReleaseRef{
+			Helm: &batchv1.ModuleSpecHelm{
+				ExistingRelease: &batchv1.ModuleSpecHelmExistingRelease{
 					Name:      helmReleaseName,
 					Namespace: helmReleaseNamespace,
-					ChartSource: batchv1.ModuleSourceChartRef{
-						Repository: chartRepo,
-					},
+				},
+				Chart: batchv1.ModuleSpecHelmChart{
+					Repo: chartRepo,
 				},
 			},
 			Workspace: batchv1.ModuleWorkspaceReference{

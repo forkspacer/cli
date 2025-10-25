@@ -236,11 +236,11 @@ func printAddSummary(mod *batchv1.Module) {
 	fmt.Printf("%s  %s\n", styles.Key("Name:"), styles.Value(mod.Name))
 	fmt.Printf("%s  %s\n", styles.Key("Namespace:"), styles.Value(mod.Namespace))
 
-	if mod.Spec.Source.ExistingHelmRelease != nil {
+	if mod.Spec.Helm != nil && mod.Spec.Helm.ExistingRelease != nil {
 		fmt.Printf("%s  %s\n", styles.Key("Source:"), styles.Value("existing-helm-release"))
-		fmt.Printf("  %s  %s\n", styles.Key("Release:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Name))
-		if mod.Spec.Source.ExistingHelmRelease.Namespace != "" {
-			fmt.Printf("  %s  %s\n", styles.Key("Release Namespace:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Namespace))
+		fmt.Printf("  %s  %s\n", styles.Key("Release:"), styles.Value(mod.Spec.Helm.ExistingRelease.Name))
+		if mod.Spec.Helm.ExistingRelease.Namespace != "" {
+			fmt.Printf("  %s  %s\n", styles.Key("Release Namespace:"), styles.Value(mod.Spec.Helm.ExistingRelease.Namespace))
 		}
 	}
 

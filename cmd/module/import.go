@@ -45,22 +45,22 @@ func init() {
 }
 
 type importConfig struct {
-	moduleName           string
-	namespace            string
-	helmRelease          string
-	helmReleaseNamespace string
-	workspace            string
-	workspaceNamespace   string
-	chartSourceType      chartSourceType
-	gitRepo              string
-	gitPath              string
-	gitRevision          string
-	publicChartRepo      string
-	publicChartName      string
-	publicChartVersion   string
-	chartRepoAuthSecret  string
+	moduleName            string
+	namespace             string
+	helmRelease           string
+	helmReleaseNamespace  string
+	workspace             string
+	workspaceNamespace    string
+	chartSourceType       chartSourceType
+	gitRepo               string
+	gitPath               string
+	gitRevision           string
+	publicChartRepo       string
+	publicChartName       string
+	publicChartVersion    string
+	chartRepoAuthSecret   string
 	chartRepoAuthSecretNS string
-	hibernated           bool
+	hibernated            bool
 }
 
 func runImport(c *cobra.Command, args []string) error {

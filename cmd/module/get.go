@@ -71,22 +71,34 @@ func runGet(c *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(styles.SubtitleStyle.Render("Source"))
 
-	if mod.Spec.Source.ExistingHelmRelease != nil {
-		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("existing-helm-release"))
-		fmt.Printf("%s  %s\n", styles.Key("Release Name:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Name))
-		if mod.Spec.Source.ExistingHelmRelease.Namespace != "" {
-			fmt.Printf("%s  %s\n", styles.Key("Release Namespace:"), styles.Value(mod.Spec.Source.ExistingHelmRelease.Namespace))
+	if mod.Spec.Helm != nil {
+		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("helm"))
+
+		if mod.Spec.Helm.ExistingRelease != nil {
+			fmt.Printf("%s  %s\n", styles.Key("Existing Release:"), styles.Value(mod.Spec.Helm.ExistingRelease.Name))
+			if mod.Spec.Helm.ExistingRelease.Namespace != "" {
+				fmt.Printf("%s  %s\n", styles.Key("Release Namespace:"), styles.Value(mod.Spec.Helm.ExistingRelease.Namespace))
+			}
 		}
-	} else if mod.Spec.Source.HttpURL != nil {
-		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("http"))
-		fmt.Printf("%s  %s\n", styles.Key("URL:"), styles.Value(*mod.Spec.Source.HttpURL))
-	} else if mod.Spec.Source.Raw != nil {
-		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("raw"))
-	} else if mod.Spec.Source.ConfigMap != nil {
-		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("configmap"))
-		fmt.Printf("%s  %s/%s\n", styles.Key("ConfigMap:"),
-			styles.Value(mod.Spec.Source.ConfigMap.Namespace),
-			styles.Value(mod.Spec.Source.ConfigMap.Name))
+
+		if mod.Spec.Helm.Chart.Repo != nil {
+			fmt.Printf("%s  %s\n", styles.Key("Chart Repo:"), styles.Value(mod.Spec.Helm.Chart.Repo.URL))
+			fmt.Printf("%s  %s\n", styles.Key("Chart Name:"), styles.Value(mod.Spec.Helm.Chart.Repo.Chart))
+			if mod.Spec.Helm.Chart.Repo.Version != nil {
+				fmt.Printf("%s  %s\n", styles.Key("Chart Version:"), styles.Value(*mod.Spec.Helm.Chart.Repo.Version))
+			}
+		} else if mod.Spec.Helm.Chart.Git != nil {
+			fmt.Printf("%s  %s\n", styles.Key("Git Repo:"), styles.Value(mod.Spec.Helm.Chart.Git.Repo))
+			fmt.Printf("%s  %s\n", styles.Key("Git Path:"), styles.Value(mod.Spec.Helm.Chart.Git.Path))
+			fmt.Printf("%s  %s\n", styles.Key("Git Revision:"), styles.Value(mod.Spec.Helm.Chart.Git.Revision))
+		} else if mod.Spec.Helm.Chart.ConfigMap != nil {
+			fmt.Printf("%s  %s/%s\n", styles.Key("ConfigMap:"),
+				styles.Value(mod.Spec.Helm.Chart.ConfigMap.Namespace),
+				styles.Value(mod.Spec.Helm.Chart.ConfigMap.Name))
+		}
+	} else if mod.Spec.Custom != nil {
+		fmt.Printf("%s  %s\n", styles.Key("Type:"), styles.Value("custom"))
+		fmt.Printf("%s  %s\n", styles.Key("Image:"), styles.Value(mod.Spec.Custom.Image))
 	}
 
 	fmt.Println()
