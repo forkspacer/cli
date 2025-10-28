@@ -55,6 +55,8 @@ type importConfig struct {
 	gitRepo               string
 	gitPath               string
 	gitRevision           string
+	gitAuthSecret         string
+	gitAuthSecretNS       string
 	publicChartRepo       string
 	publicChartName       string
 	publicChartVersion    string
@@ -188,6 +190,16 @@ func runImport(c *cobra.Command, args []string) error {
 						}
 						return nil
 					}),
+				huh.NewInput().
+					Title("Auth Secret Name (optional)").
+					Description("Leave empty for public repos, provide secret name for private repos").
+					Placeholder("github-token-secret").
+					Value(&config.gitAuthSecret),
+				huh.NewInput().
+					Title("Auth Secret Namespace (optional)").
+					Description("Namespace where the auth secret is located").
+					Placeholder("default").
+					Value(&config.gitAuthSecretNS),
 			),
 		)
 	} else {
@@ -359,6 +371,12 @@ func createModuleFromConfig(ctx context.Context, config *importConfig) error {
 	var moduleResource interface{}
 
 	if config.chartSourceType == chartSourceGit {
+		// Set default namespace for auth secret if not provided
+		authSecretNS := config.gitAuthSecretNS
+		if authSecretNS == "" && config.gitAuthSecret != "" {
+			authSecretNS = config.namespace
+		}
+
 		moduleResource, err = service.CreateExistingHelmRelease(
 			ctx,
 			config.moduleName,
@@ -371,6 +389,8 @@ func createModuleFromConfig(ctx context.Context, config *importConfig) error {
 			config.gitRepo,
 			config.gitPath,
 			config.gitRevision,
+			config.gitAuthSecret,
+			authSecretNS,
 		)
 	} else {
 		// Set default namespace for auth secret if not provided

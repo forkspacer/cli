@@ -94,7 +94,25 @@ func (s *Service) CreateExistingHelmRelease(
 	chartSourceGitRepo string,
 	chartSourceGitPath string,
 	chartSourceGitRevision string,
+	authSecretName string,
+	authSecretNamespace string,
 ) (*batchv1.Module, error) {
+	chartGit := &batchv1.ModuleSpecHelmChartGit{
+		Repo:     chartSourceGitRepo,
+		Path:     chartSourceGitPath,
+		Revision: chartSourceGitRevision,
+	}
+
+	// Add auth if secret is provided
+	if authSecretName != "" {
+		chartGit.Auth = &batchv1.ModuleSpecHelmChartGitAuth{
+			HTTPSSecretRef: &batchv1.ModuleSpecHelmChartGitAuthSecret{
+				Name:      authSecretName,
+				Namespace: authSecretNamespace,
+			},
+		}
+	}
+
 	module := &batchv1.Module{
 		ObjectMeta: ctrl.ObjectMeta{
 			Name:      name,
@@ -107,11 +125,7 @@ func (s *Service) CreateExistingHelmRelease(
 					Namespace: helmReleaseNamespace,
 				},
 				Chart: batchv1.ModuleSpecHelmChart{
-					Git: &batchv1.ModuleSpecHelmChartGit{
-						Repo:     chartSourceGitRepo,
-						Path:     chartSourceGitPath,
-						Revision: chartSourceGitRevision,
-					},
+					Git: chartGit,
 				},
 			},
 			Workspace: batchv1.ModuleWorkspaceReference{

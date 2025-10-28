@@ -25,6 +25,8 @@ var (
 	addChartGitRepo         string
 	addChartGitPath         string
 	addChartGitRevision     string
+	addChartGitAuthSecret   string
+	addChartGitAuthSecretNS string
 )
 
 var addCmd = &cobra.Command{
@@ -99,6 +101,10 @@ func init() {
 		"Path to chart directory in the Git repository (required)")
 	addCmd.Flags().StringVar(&addChartGitRevision, "chart-git-revision", "main",
 		"Git revision (branch, tag, or commit)")
+	addCmd.Flags().StringVar(&addChartGitAuthSecret, "chart-git-auth-secret", "",
+		"Name of the secret containing Git credentials for private repositories (optional)")
+	addCmd.Flags().StringVar(&addChartGitAuthSecretNS, "chart-git-auth-secret-namespace", "",
+		"Namespace of the auth secret (defaults to module namespace)")
 
 	addCmd.MarkFlagRequired("helm-release")
 	addCmd.MarkFlagRequired("workspace")
@@ -115,6 +121,11 @@ func runAdd(c *cobra.Command, args []string) error {
 	// Default workspace namespace to module namespace if not specified
 	if addWorkspaceNamespace == "" {
 		addWorkspaceNamespace = namespace
+	}
+
+	// Default auth secret namespace to module namespace if not specified
+	if addChartGitAuthSecretNS == "" && addChartGitAuthSecret != "" {
+		addChartGitAuthSecretNS = namespace
 	}
 
 	// Print header
@@ -172,6 +183,8 @@ func runAdd(c *cobra.Command, args []string) error {
 		addChartGitRepo,
 		addChartGitPath,
 		addChartGitRevision,
+		addChartGitAuthSecret,
+		addChartGitAuthSecretNS,
 	)
 	if err != nil {
 		sp.Error("Failed to create module")
